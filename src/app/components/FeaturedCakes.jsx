@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -14,26 +14,45 @@ export function FeaturedCakes() {
   const [selectedCake, setSelectedCake] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // 🔥 LIVE DATA FETCH ENGINE
+  const fetchFeatured = async () => {
+    try {
+      const res = await api.get("/admin/products");
+      const data = res.data;
+
+      // Only show "Active" products and limit to top 6 for the home page
+      const activeCakes = data
+        .filter(p => p.status === 'Active')
+        .slice(0, 6);
+
+      setFeaturedCakes(activeCakes);
+    } catch (err) {
+      console.error("Error fetching featured cakes:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchFeatured = async () => {
-      try {
-        const res = await Promise.all([
-          api.get("/admin/products")
-        ]);
-        const data = res[0].data;
-
-        const activeCakes = data
-          .filter(p => p.status === 'Active')
-          .slice(0, 6);
-
-        setFeaturedCakes(activeCakes);
-      } catch (err) {
-        console.error("Error fetching featured cakes:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    // Initial Load
     fetchFeatured();
+
+    // 🔥 FOCUS-AWARE SYNC ENGINE: Re-fetch every 4 seconds when tab is active
+    const liveInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchFeatured();
+      }
+    }, 4000);
+
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') fetchFeatured();
+    };
+
+    document.addEventListener('visibilitychange', handleFocus);
+    return () => {
+      clearInterval(liveInterval);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
   }, []);
 
   const handleOrderClick = (cake) => {
@@ -51,7 +70,7 @@ export function FeaturedCakes() {
   return (
     <section
       id="cakes"
-      className="py-14 md:py-16 bg-gradient-to-b from-[#0F0F0F] via-[#0A0A0A] to-[#000000]"
+      className="py-14 md:py-16 bg-gradient-to-b from-[#0F0F0F] via-[#0A0A0A] to-[#000000] selection:bg-[#D4AF37] selection:text-black"
     >
       <div className="site-container">
         <OrderModal
@@ -71,11 +90,12 @@ export function FeaturedCakes() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {loading ? (
-            <div className="col-span-full text-center py-10 text-gray-500">
+            <div className="col-span-full text-center py-10 text-gray-500 italic">
               Loading our best Pure Veg creations...
             </div>
           ) : (
             featuredCakes.map((cake) => {
+              // 🔥 DYNAMIC AVAILABILITY ENGINE
               const isSoldOut = cake.ordersToday >= cake.maxOrdersPerDay;
               const isTimeClosed = cake.cutoffTime && currentTime >= cake.cutoffTime;
               const isAvailable = cake.availableToday && !isSoldOut && !isTimeClosed;
@@ -83,57 +103,70 @@ export function FeaturedCakes() {
               return (
                 <Card
                   key={cake._id}
-                  className="bg-[#1A1A1A] border border-white/5 overflow-hidden rounded-2xl shadow-2xl hover:border-[#D4AF37]/50 transition-all duration-300"
+                  className="bg-[#141414] border border-white/5 overflow-hidden rounded-[2.5rem] shadow-2xl hover:border-[#D4AF37]/30 transition-all duration-500 flex flex-col h-full group"
                 >
-                  <div className="relative h-72 overflow-hidden">
+                  {/* Image & Centered Category Badge */}
+                  <div className="relative h-64 overflow-hidden">
                     <ImageWithFallback
                       src={cake.image}
                       alt={`${cake.name} - Fresh homemade Pure Veg cake in Mumbai`}
-                      className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
                     />
-                    <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-                      <span className="text-[#D4AF37] text-xs font-bold uppercase tracking-widest">
+                    <div className="absolute left-4 top-4 flex justify-center">
+                      <span className="bg-black/70 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 text-[#D4AF37] text-[10px] font-black uppercase tracking-[0.15em] flex items-center shadow-2xl">
                         {cake.category}
                       </span>
                     </div>
                   </div>
 
-                  <div className="p-6">
-                    <h3 className="text-xl font-bold text-white mb-2">
+                  <div className="p-7 flex flex-col flex-grow">
+                    <h3 className="text-xl font-bold text-white mb-2 tracking-tight">
                       {cake.name}
                     </h3>
-                    <p className="text-gray-400 text-sm mb-6 h-10 line-clamp-2">
-                      {cake.description}
+                    <p className="text-gray-500 text-xs mb-8 line-clamp-2 italic leading-relaxed">
+                      "{cake.description}"
                     </p>
 
-                    <div className="bg-black/40 border border-white/5 rounded-xl p-4 mb-6 space-y-2">
-                      <div className="flex justify-between font-bold text-[#D4AF37]">
-                        <span>Price:</span>
-                        <span className="text-2xl">₹{cake.price}</span>
+                    <div className="mt-auto space-y-6">
+                      {/* Pricing Grid with High Contrast */}
+                      <div className="bg-[#0D0D0D] rounded-[1.8rem] p-5 border border-white/5 space-y-4 shadow-inner">
+                        {cake.variants && cake.variants.length > 0 ? (
+                          cake.variants.slice(0, 2).map((v, i) => (
+                            <div key={i} className={`flex justify-between items-center ${i !== 0 ? 'pt-4 border-t border-white/5' : ''}`}>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-gray-100 text-[11px] font-black uppercase tracking-wider">{v.sizeName}</span>
+                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-tighter flex items-center gap-1">
+                                  <Users size={10} className="text-[#D4AF37]/50" /> {v.serves || 'Standard'}
+                                </span>
+                              </div>
+                              <span className="text-xl font-black text-[#D4AF37] tracking-tighter">₹{v.price}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="flex justify-between items-center">
+                            <div className="flex flex-col">
+                              <span className="text-gray-100 text-[11px] font-black uppercase tracking-wider">Standard Size</span>
+                              <span className="text-[9px] text-gray-500 font-bold">Standard Serving</span>
+                            </div>
+                            <span className="text-xl font-black text-[#D4AF37]">₹{cake.price}</span>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-[10px] text-gray-500 text-right uppercase tracking-tighter">
-                        Size Option: {cake.size}
-                      </p>
-                    </div>
 
-                    <Button
-                      disabled={!isAvailable}
-                      onClick={() => handleOrderClick(cake)}
-                      aria-label={`Order ${cake.name} Now`}
-                      className={`w-full font-bold rounded-full py-6 hover:cursor-pointer transition-all ${isAvailable
-                        ? 'bg-[#D4AF37] hover:bg-[#B8860B] text-black'
-                        : 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                        }`}
-                    >
-                      <ShoppingCart className="mr-2 h-5 w-5" />
-                      {isAvailable
-                        ? 'Order Now'
-                        : isTimeClosed
-                          ? 'Orders Closed for Today'
-                          : isSoldOut
-                            ? 'Sold Out Today'
-                            : 'Currently Unavailable'}
-                    </Button>
+                      <Button
+                        disabled={!isAvailable}
+                        onClick={() => handleOrderClick(cake)}
+                        className={`w-full font-black rounded-2xl py-8 transition-all duration-300 shadow-xl flex items-center justify-center gap-3 ${isAvailable
+                          ? 'bg-[#D4AF37] hover:bg-white text-black active:scale-95'
+                          : 'bg-white/5 text-gray-600 cursor-not-allowed grayscale'
+                          }`}
+                      >
+                        <ShoppingCart className="h-5 w-5" />
+                        <span className="uppercase tracking-widest text-xs font-black">
+                          {isAvailable ? 'Order Now' : isTimeClosed ? 'Orders Closed' : 'Sold Out'}
+                        </span>
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               );
@@ -144,10 +177,9 @@ export function FeaturedCakes() {
         <div className="flex justify-center mt-14">
           <Button
             onClick={handleViewAll}
-            aria-label="View the full collection of handcrafted Pure Veg cakes"
-            className="bg-transparent border-2 border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37] hover:text-black rounded-full px-10 py-6 text-lg font-semibold transition-all duration-300 hover:cursor-pointer"
+            className="bg-transparent border-2 border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37] hover:text-black rounded-full px-12 py-7 text-lg font-black transition-all duration-300 hover:cursor-pointer uppercase tracking-widest shadow-lg active:scale-95"
           >
-            View All Cakes
+            Explore Full Menu
           </Button>
         </div>
       </div>
