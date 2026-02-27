@@ -14,3 +14,24 @@ body {
   width: 100%;
   overflow-x: clip;
 }
+
+@keyframes whatsapp-ripple {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+
+  80% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.whatsapp-pulse-ring {
+  animation: whatsapp-ripple 2.5s infinite;
+}

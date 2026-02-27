@@ -1,0 +1,20 @@
+# ==========================================
+# Robots.txt for Naazie's Eats & Treats
+# ==========================================
+
+# Allow all search engines to crawl the public consumer site
+User-agent: *
+Allow: /
+Allow: /cakes
+Allow: /about
+
+# ❌ STRICT BLOCK: Prevent Admin and sensitive pages from appearing in Google
+Disallow: /admin
+Disallow: /admin/
+Disallow: /admin/login
+Disallow: /api/
+Disallow: /private/
+Disallow: /*?*admin=
+
+# Link to your sitemap to help Google find Pure Veg cake pages
+Sitemap: https://naazieseatsntreats.vercel.app/sitemap.xml

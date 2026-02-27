@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, ShoppingBag, Users, Settings, LogOut, X, Package, Tag } from 'lucide-react';
-import logo from '../../../assets/images/logo2.png';
+import logo from '../../../assets/images/logo3.png';
 
 export function AdminSidebar({ isMobile, closeMobileMenu, handleLogout }) {
     const navItems = [

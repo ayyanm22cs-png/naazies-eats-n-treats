@@ -69,6 +69,26 @@ export default function CakesPage() {
         });
     }, [activeCategory, maxPrice, searchQuery, allCakes]);
 
+    // 🔥 SEO: Dynamic JSON-LD for Products
+    const productsSchema = {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "itemListElement": filteredCakes.slice(0, 10).map((cake, index) => ({
+            "@type": "ListItem",
+            "position": index + 1,
+            "url": `https://naazieseatsntreats.vercel.app/cakes`,
+            "name": cake.name,
+            "image": cake.image,
+            "description": cake.description,
+            "offers": {
+                "@type": "Offer",
+                "price": cake.price,
+                "priceCurrency": "INR",
+                "availability": cake.availableToday ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"
+            }
+        }))
+    };
+
     const FilterContent = () => (
         <div className="space-y-10">
             <div>
@@ -79,6 +99,7 @@ export default function CakesPage() {
                     {categories.map((cat) => (
                         <button
                             key={cat.id}
+                            aria-label={`Filter by ${cat.label}`}
                             onClick={() => {
                                 setActiveCategory(cat.id);
                                 setIsFilterDrawerOpen(false);
@@ -101,6 +122,7 @@ export default function CakesPage() {
                 <input
                     type="range" min="100" max="3000" step="50"
                     value={maxPrice}
+                    aria-label="Filter by maximum price"
                     onChange={(e) => setMaxPrice(parseInt(e.target.value))}
                     className="w-full h-2 bg-black rounded-lg appearance-none cursor-pointer accent-[#D4AF37]"
                 />
@@ -114,6 +136,11 @@ export default function CakesPage() {
 
     return (
         <div className="min-h-screen bg-[#0A0A0A] pt-24 pb-20">
+            {/* Google Structured Data */}
+            <script type="application/ld+json">
+                {JSON.stringify(productsSchema)}
+            </script>
+
             <div className="site-container">
                 <Link to="/" className="inline-flex items-center text-[#D4AF37] hover:text-[#B8860B] transition-colors mb-8 group">
                     <ArrowLeft className="mr-2 h-5 w-5 group-hover:-translate-x-1 transition-transform" />
@@ -142,7 +169,7 @@ export default function CakesPage() {
                                 >
                                     <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
                                         <h2 className="text-xl font-bold text-white">Filters</h2>
-                                        <button onClick={() => setIsFilterDrawerOpen(false)} className="text-gray-400"><X size={24} /></button>
+                                        <button onClick={() => setIsFilterDrawerOpen(false)} aria-label="Close filters" className="text-gray-400"><X size={24} /></button>
                                     </div>
                                     <FilterContent />
                                     <Button className="w-full mt-10 bg-[#D4AF37] text-black font-bold" onClick={() => setIsFilterDrawerOpen(false)}>
@@ -156,12 +183,12 @@ export default function CakesPage() {
                     <div className="flex-1">
                         <div className="flex flex-col gap-6 mb-10">
                             <div className="flex justify-between items-end">
-                                <div>
-                                    <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 tracking-tight">Our Menu</h1>
+                                <header>
+                                    <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 tracking-tight">Our Cake Menu</h1>
                                     <p className="text-gray-500 text-sm">
-                                        {loading ? "Loading cakes..." : `Showing ${filteredCakes.length} handcrafted treats`}
+                                        {loading ? "Loading cakes..." : `Showing ${filteredCakes.length} handcrafted treats available in Mumbai`}
                                     </p>
-                                </div>
+                                </header>
                                 <button
                                     onClick={() => setIsFilterDrawerOpen(true)}
                                     className="lg:hidden flex items-center gap-2 bg-[#D4AF37] text-black px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg"
@@ -173,7 +200,7 @@ export default function CakesPage() {
                             <div className="relative w-full group">
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-[#D4AF37]" size={20} />
                                 <Input
-                                    placeholder="Search flavors, cakes..."
+                                    placeholder="Search cake flavors (e.g. Chocolate, Vanilla)..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     className="pl-12 h-14 bg-[#141414] border-white/5 text-white rounded-2xl"
@@ -199,7 +226,11 @@ export default function CakesPage() {
                                         <motion.div key={cake._id} layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
                                             <Card className="bg-[#1A1A1A] border border-white/5 overflow-hidden rounded-[1.5rem] shadow-2xl hover:border-[#D4AF37]/40 transition-all h-full flex flex-col">
                                                 <div className="relative h-56 sm:h-64 overflow-hidden">
-                                                    <ImageWithFallback src={cake.image} alt={cake.name} className="w-full h-full object-cover hover:scale-110" />
+                                                    <ImageWithFallback
+                                                        src={cake.image}
+                                                        alt={`${cake.name} - Custom cake design by Naazie's Mumbai`}
+                                                        className="w-full h-full object-cover hover:scale-110"
+                                                    />
                                                     <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
                                                         <span className="text-[#D4AF37] text-[10px] font-black uppercase tracking-widest">
                                                             {cake.category}
@@ -222,6 +253,7 @@ export default function CakesPage() {
                                                         <Button
                                                             disabled={!isAvailable}
                                                             onClick={() => handleOrderClick(cake)}
+                                                            aria-label={isAvailable ? `Order ${cake.name}` : `${cake.name} is currently unavailable`}
                                                             className={`w-full font-black rounded-xl py-6 ${isAvailable
                                                                 ? 'bg-[#D4AF37] hover:bg-[#B8860B] text-black'
                                                                 : 'bg-gray-700 text-gray-400 cursor-not-allowed'
@@ -247,7 +279,7 @@ export default function CakesPage() {
 
                         {!loading && filteredCakes.length === 0 && (
                             <div className="text-center py-20 text-gray-500 italic">
-                                No cakes found matching your criteria.
+                                No cakes found matching your criteria. Try searching for "Chocolate" or "Vanilla".
                             </div>
                         )}
                     </div>

@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock, Mail, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import api from '../../lib/api'; 
+import api from '../../lib/api';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
@@ -15,6 +15,18 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  // 🔥 ANTI-SEO: Prevent this page from ever being indexed by search engines
+  useEffect(() => {
+    const meta = document.createElement('meta');
+    meta.name = "robots";
+    meta.content = "noindex, nofollow";
+    document.getElementsByTagName('head')[0].appendChild(meta);
+
+    return () => {
+      document.getElementsByTagName('head')[0].removeChild(meta);
+    };
+  }, []);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -24,7 +36,6 @@ export default function LoginPage() {
       const response = await api.post('/admin/login', { email, password });
 
       if (response.status === 200) {
-        // 🔥 Store admin info to pass the ProtectedRoute check
         localStorage.setItem('adminUser', JSON.stringify(response.data));
         toast.success(`Welcome back, ${response.data.name}`);
         navigate('/admin/dashboard');
@@ -39,7 +50,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A] px-6 relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#D4AF37]/10 blur-[120px] rounded-full animate-pulse"></div>
-      
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -62,7 +73,7 @@ export default function LoginPage() {
               <label className="text-xs uppercase tracking-widest text-[#D4AF37] font-bold">Email</label>
               <div className="relative group">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-12 bg-black/50 border-white/5 text-white h-14 rounded-2xl" />
+                <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-12 bg-black/50 border-white/5 text-white h-14 rounded-2xl focus:ring-1 focus:ring-[#D4AF37]" />
               </div>
             </div>
 
@@ -70,12 +81,12 @@ export default function LoginPage() {
               <label className="text-xs uppercase tracking-widest text-[#D4AF37] font-bold">Password</label>
               <div className="relative group">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                <Input required type={showPass ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="pl-12 bg-black/50 border-white/5 text-white h-14 rounded-2xl" />
-                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">{showPass ? <EyeOff size={20} /> : <Eye size={20} />}</button>
+                <Input required type={showPass ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="pl-12 bg-black/50 border-white/5 text-white h-14 rounded-2xl focus:ring-1 focus:ring-[#D4AF37]" />
+                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors">{showPass ? <EyeOff size={20} /> : <Eye size={20} />}</button>
               </div>
             </div>
 
-            <Button disabled={loading} type="submit" className="w-full h-14 bg-[#D4AF37] hover:bg-[#B8860B] text-black font-black text-lg rounded-2xl">
+            <Button disabled={loading} type="submit" className="w-full h-14 bg-[#D4AF37] hover:bg-[#B8860B] text-black font-black text-lg rounded-2xl transition-all active:scale-95">
               {loading ? <Loader2 className="animate-spin" /> : "Enter Dashboard"}
             </Button>
           </form>

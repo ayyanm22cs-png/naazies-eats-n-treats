@@ -1,0 +1,36 @@
+name: Daily Database Backup
+on:
+  schedule:
+    - cron: '0 0 * * *' # Midnight every day
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        working-directory: ./backend  # 🔥 Moves into your backend folder
+        run: npm install
+
+      - name: Run Backup Script
+        working-directory: ./backend  # 🔥 Runs script from the backend folder
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+        run: node scripts/backup.js
+
+      - name: Commit Backup to Repository
+        run: |
+          git config --global user.name "Naazie Backup Bot"
+          git config --global user.email "admin@naazieseatsntreats.com"
+          # 🔥 Adds the backups folder created inside the backend directory
+          git add backend/backups/ 
+          git commit -m "Automated Pure Veg DB Backup: $(date)"
+          git push

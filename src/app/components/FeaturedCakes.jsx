@@ -22,7 +22,6 @@ export function FeaturedCakes() {
         ]);
         const data = res[0].data;
 
-        // Only ACTIVE cakes shown
         const activeCakes = data
           .filter(p => p.status === 'Active')
           .slice(0, 6);
@@ -44,7 +43,6 @@ export function FeaturedCakes() {
 
   const handleViewAll = () => { navigate('/cakes'); };
 
-  // 🔥 CURRENT TIME (HH:MM)
   const currentTime = useMemo(() => {
     const now = new Date();
     return now.toTimeString().slice(0, 5);
@@ -64,25 +62,22 @@ export function FeaturedCakes() {
 
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 text-glow">
-            Featured Cakes
+            Best Sellers & Featured Cakes
           </h2>
           <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-            Handcrafted with premium ingredients, delivered fresh to your door.
+            Handcrafted with premium <strong>Pure Veg ingredients</strong>, delivered fresh in <strong>Mumbai</strong>.
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {loading ? (
             <div className="col-span-full text-center py-10 text-gray-500">
-              Loading our best creations...
+              Loading our best Pure Veg creations...
             </div>
           ) : (
             featuredCakes.map((cake) => {
-              // 🔥 AVAILABILITY ENGINE
               const isSoldOut = cake.ordersToday >= cake.maxOrdersPerDay;
-
               const isTimeClosed = cake.cutoffTime && currentTime >= cake.cutoffTime;
-
               const isAvailable = cake.availableToday && !isSoldOut && !isTimeClosed;
 
               return (
@@ -93,7 +88,7 @@ export function FeaturedCakes() {
                   <div className="relative h-72 overflow-hidden">
                     <ImageWithFallback
                       src={cake.image}
-                      alt={cake.name}
+                      alt={`${cake.name} - Fresh homemade Pure Veg cake in Mumbai`}
                       className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
                     />
                     <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
@@ -117,13 +112,14 @@ export function FeaturedCakes() {
                         <span className="text-2xl">₹{cake.price}</span>
                       </div>
                       <p className="text-[10px] text-gray-500 text-right uppercase tracking-tighter">
-                        Size: {cake.size}
+                        Size Option: {cake.size}
                       </p>
                     </div>
 
                     <Button
                       disabled={!isAvailable}
                       onClick={() => handleOrderClick(cake)}
+                      aria-label={`Order ${cake.name} Now`}
                       className={`w-full font-bold rounded-full py-6 hover:cursor-pointer transition-all ${isAvailable
                         ? 'bg-[#D4AF37] hover:bg-[#B8860B] text-black'
                         : 'bg-gray-800 text-gray-500 cursor-not-allowed'
@@ -148,6 +144,7 @@ export function FeaturedCakes() {
         <div className="flex justify-center mt-14">
           <Button
             onClick={handleViewAll}
+            aria-label="View the full collection of handcrafted Pure Veg cakes"
             className="bg-transparent border-2 border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37] hover:text-black rounded-full px-10 py-6 text-lg font-semibold transition-all duration-300 hover:cursor-pointer"
           >
             View All Cakes

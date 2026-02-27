@@ -11,13 +11,45 @@ import api from '../../../lib/api';
 export function OrderModal({ isOpen, onClose, cake }) {
     if (!cake) return null;
 
+    // --- Logic to Disable Past Dates & Apply 6:00 PM Cutoff ---
     const minDateString = useMemo(() => {
         const now = new Date();
+        const currentHour = now.getHours();
+
+        // If it's after 6:00 PM (18:00), the earliest delivery is tomorrow
+        if (currentHour >= 18) {
+            now.setDate(now.getDate() + 1);
+        }
+
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
     }, [isOpen]);
+
+    // --- SEO Schema for Order Action ---
+    const orderSchema = {
+        "@context": "https://schema.org",
+        "@type": "OrderAction",
+        "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": `https://wa.me/917304382291?text=Order:${cake.name}`,
+            "actionPlatform": [
+                "http://schema.org/DesktopWebPlatform",
+                "http://schema.org/MobileWebPlatform"
+            ]
+        },
+        "object": {
+            "@type": "Product",
+            "name": cake.name,
+            "image": cake.image || "https://naazieseatsntreats.vercel.app/logo3.png",
+            "offers": {
+                "@type": "Offer",
+                "price": cake.price || 0,
+                "priceCurrency": "INR"
+            }
+        }
+    };
 
     const [formData, setFormData] = useState({ customerName: '', phone: '', deliveryDate: '', notes: '' });
     const [loading, setLoading] = useState(false);
@@ -36,7 +68,6 @@ export function OrderModal({ isOpen, onClose, cake }) {
         setLoading(true);
         try {
             const finalPrice = cake.price || 0;
-            // 🔥 Switched to Axios Instance
             await api.post('/admin/orders/create', {
                 productId: cake._id,
                 customerName: formData.customerName,
@@ -56,7 +87,7 @@ export function OrderModal({ isOpen, onClose, cake }) {
                 `*Delivery Date:* ${formData.deliveryDate}%0A` +
                 `*Notes:* ${formData.notes || 'None'}`;
 
-            window.open(`https://wa.me/919321444051?text=${message}`, '_blank');
+            window.open(`https://wa.me/917304382291?text=${message}`, '_blank');
             toast.success("Order logged!");
             onClose();
         } catch (error) {
@@ -70,6 +101,9 @@ export function OrderModal({ isOpen, onClose, cake }) {
         <AnimatePresence>
             {isOpen && (
                 <div className="fixed inset-0 z-[300] flex items-center justify-center px-4">
+                    {/* SEO Script Injection */}
+                    <script type="application/ld+json">{JSON.stringify(orderSchema)}</script>
+
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/90 backdrop-blur-sm" />
                     <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-lg bg-[#141414] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
                         <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-[#D4AF37]/10 to-transparent">
@@ -85,27 +119,27 @@ export function OrderModal({ isOpen, onClose, cake }) {
                                     <Label className="text-gray-400">Full Name</Label>
                                     <div className="relative">
                                         <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                                        <Input name="customerName" required value={formData.customerName} onChange={handleChange} className="pl-10 bg-black border-white/5 text-white h-12" placeholder="Ayyan Malim" />
+                                        <Input name="customerName" required value={formData.customerName} onChange={handleChange} className="pl-10 bg-black border-white/5 text-white h-12 rounded-xl" placeholder="Ayyan Malim" />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-gray-400">Phone Number</Label>
                                     <div className="relative">
                                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                                        <Input name="phone" required type="tel" value={formData.phone} onChange={handlePhoneChange} className="pl-10 bg-black border-white/5 text-white h-12" placeholder="9876543210" />
+                                        <Input name="phone" required type="tel" value={formData.phone} onChange={handlePhoneChange} className="pl-10 bg-black border-white/5 text-white h-12 rounded-xl" placeholder="9876543210" />
                                     </div>
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-gray-400">Delivery Date</Label>
                                 <div className="relative group">
-                                    <Input name="deliveryDate" required type="date" min={minDateString} value={formData.deliveryDate} onChange={handleChange} onClick={(e) => e.target.showPicker()} className="bg-black border-white/5 text-white h-12 w-full pr-10 cursor-pointer focus:border-[#D4AF37]/50" />
+                                    <Input name="deliveryDate" required type="date" min={minDateString} value={formData.deliveryDate} onChange={handleChange} onClick={(e) => e.target.showPicker()} className="bg-black border-white/5 text-white h-12 w-full pr-10 cursor-pointer focus:border-[#D4AF37]/50 rounded-xl" />
                                     <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-[#D4AF37] pointer-events-none" size={18} />
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-gray-400">Special Instructions</Label>
-                                <Textarea name="notes" value={formData.notes} onChange={handleChange} className="bg-black border-white/5 text-white min-h-[100px]" placeholder="Extra instructions..." />
+                                <Label className="text-gray-400">Special Instructions / Message</Label>
+                                <Textarea name="notes" value={formData.notes} onChange={handleChange} className="bg-black border-white/5 text-white min-h-[100px] rounded-xl" placeholder="Any special message on the cake or instructions..." />
                             </div>
                             <Button disabled={loading} type="submit" className="w-full bg-[#D4AF37] hover:bg-[#B8860B] text-black font-black py-7 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all">
                                 {loading ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
