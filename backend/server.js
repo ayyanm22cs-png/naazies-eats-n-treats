@@ -12,7 +12,8 @@ const app = express();
 // --- 1. DYNAMIC CORS CONFIGURATION ---
 const allowedOrigins = [
     'http://localhost:5173',
-    'https://naazies-eats-n-treats.vercel.app'
+    'https://naazies-eats-n-treats.vercel.app',
+    'https://naazieseatsntreats.vercel.app'
 ];
 
 app.use(cors({
