@@ -134,17 +134,59 @@ export const logoutAdmin = async (req, res) => {
 // --- ORDERS ---
 export const createOrder = async (req, res) => {
     try {
-        const { productId, orderType } = req.body;
+        const { productId, orderType, deliveryDate } = req.body;
 
         // If it's a standard order, we check product availability
         if (orderType !== 'Custom' && productId) {
             const product = await Product.findById(productId);
             if (!product) return res.status(404).json({ message: "Product not found" });
 
-            const today = new Date().toISOString().split("T")[0];
-            if (product.lastOrderDate !== today) {
+            // 🔥 IST Time Handling (Important for Mumbai Production)
+            const nowIST = new Date(
+                new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+            );
+
+            const selectedDate = new Date(deliveryDate);
+            const todayIST = new Date(
+                new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+            );
+
+            // Helper to check same calendar day
+            const isSameDay = (d1, d2) => {
+                return (
+                    d1.getFullYear() === d2.getFullYear() &&
+                    d1.getMonth() === d2.getMonth() &&
+                    d1.getDate() === d2.getDate()
+                );
+            };
+
+            // Helper to check cutoff
+            const isAfterCutoff = (cutoff) => {
+                if (!cutoff) return false;
+
+                const [cutHour, cutMinute] = cutoff.split(":").map(Number);
+
+                const cutoffDate = new Date(nowIST);
+                cutoffDate.setHours(cutHour, cutMinute, 0, 0);
+
+                return nowIST >= cutoffDate;
+            };
+
+            const isTodayDelivery = isSameDay(selectedDate, todayIST);
+            const isTimeClosed = isTodayDelivery && isAfterCutoff(product.cutoffTime);
+
+            // 🔥 BLOCK SAME-DAY AFTER CUTOFF
+            if (isTimeClosed) {
+                return res.status(400).json({
+                    message: "Same-day orders are closed for this cake. Please select a future delivery date."
+                });
+            }
+
+            // 🔥 DAILY ORDER LIMIT RESET
+            const todayString = todayIST.toISOString().split("T")[0];
+            if (product.lastOrderDate !== todayString) {
                 product.ordersToday = 0;
-                product.lastOrderDate = today;
+                product.lastOrderDate = todayString;
             }
 
             if (!product.availableToday || product.ordersToday >= product.maxOrdersPerDay) {
@@ -158,6 +200,7 @@ export const createOrder = async (req, res) => {
         // Create the order (Works for both Standard and Custom)
         const order = await Order.create(req.body);
         res.status(201).json(order);
+
     } catch (error) {
         console.error("Create Order Error:", error);
         res.status(400).json({ message: "Order failed", error: error.message });
@@ -243,21 +286,24 @@ export const getProducts = async (req, res) => {
 // --- PRODUCTS ---
 export const addProduct = async (req, res) => {
     try {
-        // 🔥 Logic: Use Cloudinary path if file exists, otherwise take the URL from body
         const imageUrl = req.file ? req.file.path : req.body.image;
+        if (!imageUrl) return res.status(400).json({ message: 'Image required' });
 
-        if (!imageUrl) {
-            return res.status(400).json({ message: 'Please provide an image file or a valid URL' });
+        // 🔥 FIX: Parse the variants string back into an array
+        let variants = [];
+        if (req.body.variants) {
+            variants = JSON.parse(req.body.variants);
         }
 
         const product = await Product.create({
             ...req.body,
+            variants, // Save as array
             image: imageUrl
         });
 
         res.status(201).json(product);
     } catch (error) {
-        res.status(400).json({ message: 'Failed to create product', error: error.message });
+        res.status(400).json({ message: 'Failed to create', error: error.message });
     }
 };
 
@@ -266,20 +312,25 @@ export const updateProduct = async (req, res) => {
         const product = await Product.findById(req.params.id);
         if (!product) return res.status(404).json({ message: "Not found" });
 
-        // Update fields from body
-        Object.assign(product, req.body);
-
-        // 🔥 Update image: priority to new file upload, then body URL string
-        if (req.file) {
-            product.image = req.file.path;
-        } else if (req.body.image) {
-            product.image = req.body.image;
+        // 🔥 FIX: Parse variants if they exist in the body
+        let updateData = { ...req.body };
+        if (req.body.variants) {
+            updateData.variants = JSON.parse(req.body.variants);
         }
 
-        await product.save();
-        res.json(product);
+        if (req.file) {
+            updateData.image = req.file.path;
+        }
+
+        const updatedProduct = await Product.findByIdAndUpdate(
+            req.params.id,
+            updateData,
+            { new: true }
+        );
+
+        res.json(updatedProduct);
     } catch (error) {
-        res.status(400).json({ message: "Failed to update product", error: error.message });
+        res.status(400).json({ message: "Update failed", error: error.message });
     }
 };
 
