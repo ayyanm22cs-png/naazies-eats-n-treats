@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tag, Trash2, Edit2, Loader2, X, Plus, FolderTree } from 'lucide-react';
+import { Tag, Trash2, Edit2, Loader2, X, Plus, FolderTree, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -11,6 +11,7 @@ export function Categories() {
     const [newCat, setNewCat] = useState('');
     const [loading, setLoading] = useState(false);
     const [editingId, setEditingId] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const fetchCategories = async () => {
         try {
@@ -53,6 +54,11 @@ export function Categories() {
         } catch (err) { toast.error("Delete failed"); }
     };
 
+    // 🔥 Filter Logic
+    const filteredCategories = categories.filter(cat =>
+        cat.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
     return (
         <div className="max-w-5xl mx-auto space-y-10 pb-10">
             {/* Header Section */}
@@ -64,12 +70,35 @@ export function Categories() {
                     </h2>
                     <p className="text-gray-500 text-sm mt-1 ml-11">Organize your cakes and treats by collections.</p>
                 </div>
-                <div className="bg-[#1A1A1A] border border-white/5 px-4 py-2 rounded-2xl flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-[#D4AF37] animate-pulse" />
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                        {categories.length} Total Categories
-                    </span>
+                <div className="flex items-center gap-4">
+                    <div className="relative group hidden md:block">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-[#D4AF37]" size={16} />
+                        <input
+                            type="text"
+                            placeholder="Search categories..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-[#141414] border border-white/5 pl-12 pr-4 py-3 rounded-2xl text-sm text-white outline-none focus:border-[#D4AF37]/50 transition-all shadow-xl" />
+                    </div>
+                    <div className="bg-[#1A1A1A] border border-white/5 px-4 py-3 rounded-2xl flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-[#D4AF37] animate-pulse" />
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                            {categories.length} Total
+                        </span>
+                    </div>
                 </div>
+            </div>
+
+            {/* Mobile Search */}
+            <div className="md:hidden relative group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                <input
+                    type="text"
+                    placeholder="Search collections..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-[#111111] border border-white/10 pl-12 pr-4 py-4 rounded-2xl text-white outline-none focus:border-[#D4AF37]/50"
+                />
             </div>
 
             {/* Input Card */}
@@ -135,7 +164,7 @@ export function Categories() {
                         </thead>
                         <tbody className="text-white">
                             <AnimatePresence mode='popLayout'>
-                                {categories.map((cat, index) => (
+                                {filteredCategories.map((cat, index) => (
                                     <motion.tr
                                         key={cat._id}
                                         initial={{ opacity: 0, x: -10 }}
@@ -180,12 +209,14 @@ export function Categories() {
                     </table>
                 </div>
 
-                {categories.length === 0 && (
+                {filteredCategories.length === 0 && (
                     <div className="py-20 text-center flex flex-col items-center justify-center gap-4">
                         <div className="p-4 bg-white/5 rounded-full">
                             <Tag className="text-gray-600" size={32} />
                         </div>
-                        <p className="text-gray-500 italic text-sm">No categories created yet. Start by adding one above.</p>
+                        <p className="text-gray-500 italic text-sm">
+                            {searchQuery ? "No collections match your search." : "No categories created yet."}
+                        </p>
                     </div>
                 )}
             </motion.div>

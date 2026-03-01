@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ShoppingBag, Clock, CheckCircle, MessageCircle, Edit3, Check, X as CloseIcon } from 'lucide-react';
+import { ShoppingBag, Clock, CheckCircle, MessageCircle, Edit3, Check, X as CloseIcon, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../lib/api';
 
 export function Orders() {
     const [orders, setOrders] = useState([]);
     const [updatingId, setUpdatingId] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // 🔥 State for Inline Price Editing
     const [editingPriceId, setEditingPriceId] = useState(null);
@@ -71,11 +72,32 @@ export function Orders() {
         }
     };
 
+    // 🔥 Filter Logic
+    const filteredOrders = orders.filter(order =>
+        order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.phone.includes(searchQuery) ||
+        order.cakeFlavor.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
     return (
         <div className="space-y-6">
-            <h1 className="text-2xl font-bold text-white tracking-tight">Incoming Orders</h1>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h1 className="text-2xl font-bold text-white tracking-tight">Incoming Orders</h1>
+
+                {/* Search Bar */}
+                <div className="relative group w-full md:w-80">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-[#D4AF37]" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Search name, phone or cake..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-[#141414] border border-white/5 pl-12 pr-4 py-3 rounded-2xl text-sm text-white outline-none focus:border-[#D4AF37]/50 transition-all shadow-xl"
+                    />
+                </div>
+            </div>
+
             <div className="bg-[#141414] border border-white/5 rounded-[2rem] shadow-2xl overflow-hidden">
-                {/* 🔥 Added overflow-x-auto to allow horizontal scrolling on mobile */}
                 <div className="overflow-x-auto w-full scrollbar-thin scrollbar-thumb-gray-800">
                     <table className="w-full text-left min-w-[800px]">
                         <thead className="bg-white/[0.02] text-gray-500 uppercase text-[10px] tracking-widest">
@@ -88,7 +110,7 @@ export function Orders() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5 text-white">
-                            {orders.map((order) => (
+                            {filteredOrders.map((order) => (
                                 <tr key={order._id} className="hover:bg-white/[0.01] transition-colors">
                                     <td className="px-8 py-5">
                                         <div className="font-bold flex items-center gap-2">
@@ -164,8 +186,10 @@ export function Orders() {
                         </tbody>
                     </table>
                 </div>
-                {orders.length === 0 && (
-                    <div className="text-center py-20 text-gray-600 italic">No orders found.</div>
+                {filteredOrders.length === 0 && (
+                    <div className="text-center py-20 text-gray-600 italic">
+                        {searchQuery ? "No orders match your search." : "No orders found."}
+                    </div>
                 )}
             </div>
         </div>
