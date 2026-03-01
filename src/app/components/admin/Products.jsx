@@ -73,10 +73,11 @@ export function Products() {
             data.append(key, formData[key]);
         });
 
-        if (imageSource === 'upload' && formData.image) {
-            data.append('image', formData.image);
-        } else {
+        // Use imageUrl if source is URL, else use the uploaded file
+        if (imageSource === 'url') {
             data.append('image', formData.imageUrl);
+        } else if (formData.image) {
+            data.append('image', formData.image);
         }
 
         try {
@@ -117,7 +118,6 @@ export function Products() {
         } catch { toast.error("Failed"); }
     };
 
-    // 🔥 Filter Logic
     const filteredProducts = products.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.category.toLowerCase().includes(searchQuery.toLowerCase())
@@ -129,7 +129,6 @@ export function Products() {
                 <h1 className="text-2xl font-bold text-white">Product Inventory</h1>
 
                 <div className="flex flex-col md:flex-row items-center gap-4">
-                    {/* Search Bar */}
                     <div className="relative group w-full md:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-[#D4AF37]" size={16} />
                         <input
@@ -137,13 +136,14 @@ export function Products() {
                             placeholder="Search name or category..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-[#141414] border border-white/5 pl-12 pr-4 py-3 rounded-2xl text-sm text-white outline-none focus:border-[#D4AF37]/50 transition-all shadow-xl"
+                            className="w-full bg-[#141414] border border-white/5 pl-10 pr-4 py-2 rounded-xl text-xs text-white outline-none focus:border-[#D4AF37]/50 transition-all shadow-xl"
                         />
                     </div>
 
                     <Button
                         onClick={() => {
                             setEditingId(null);
+                            setImageSource('upload');
                             setFormData({
                                 name: '', category: '', description: '', image: null, imageUrl: '',
                                 variants: [{ sizeName: '1/2 Kg', serves: '', price: '', stock: '10' }],
@@ -223,7 +223,12 @@ export function Products() {
                                         </td>
                                         <td className="px-8 py-5 text-right px-10">
                                             <div className="flex justify-end gap-4">
-                                                <Edit2 size={18} className="text-gray-400 hover:text-orange-500 cursor-pointer" onClick={() => { setEditingId(p._id); setFormData({ ...p, imageUrl: p.image }); setShowModal(true); }} />
+                                                <Edit2 size={18} className="text-gray-400 hover:text-orange-500 cursor-pointer" onClick={() => {
+                                                    setEditingId(p._id);
+                                                    setImageSource('url');
+                                                    setFormData({ ...p, imageUrl: p.image });
+                                                    setShowModal(true);
+                                                }} />
                                                 <Trash2 size={18} className="text-gray-400 hover:text-red-500 cursor-pointer" onClick={() => handleDelete(p._id)} />
                                             </div>
                                         </td>
@@ -233,11 +238,6 @@ export function Products() {
                         </tbody>
                     </table>
                 </div>
-                {filteredProducts.length === 0 && (
-                    <div className="text-center py-20 text-gray-600 italic">
-                        {searchQuery ? "No products match your search." : "Inventory is empty."}
-                    </div>
-                )}
             </div>
 
             <AnimatePresence>
@@ -249,7 +249,7 @@ export function Products() {
                                 <h2 className="text-xl font-bold text-white">{editingId ? "Update Creation" : "New Creation"}</h2>
                                 <button onClick={() => setShowModal(false)} className="bg-white/5 p-2 rounded-full text-gray-400 hover:text-white transition-all"><X size={20} /></button>
                             </div>
-                            <form onSubmit={handleUpload} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+                            <form onSubmit={handleUpload} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Cake Name</label>
@@ -267,6 +267,7 @@ export function Products() {
                                     <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Description</label>
                                     <textarea className="w-full bg-black border border-white/10 rounded-xl p-4 text-white text-sm outline-none min-h-[100px]" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
                                 </div>
+
                                 <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-4">
                                     <div className="flex justify-between items-center">
                                         <h3 className="text-white font-black text-xs uppercase tracking-widest flex items-center gap-2"><IndianRupee size={14} className="text-orange-500" /> Size & Pricing</h3>
@@ -282,15 +283,43 @@ export function Products() {
                                         </div>
                                     ))}
                                 </div>
-                                <div className="flex gap-4 p-1 bg-black rounded-xl border border-white/5">
-                                    <button type="button" onClick={() => setImageSource('upload')} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${imageSource === 'upload' ? 'bg-orange-600 text-white' : 'text-gray-500'}`}><ImageIcon size={14} /> Upload File</button>
-                                    <button type="button" onClick={() => setImageSource('url')} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${imageSource === 'url' ? 'bg-orange-600 text-white' : 'text-gray-500'}`}><LinkIcon size={14} /> Image URL</button>
+
+                                <div className="space-y-4 bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+                                    <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest block">Product Media</label>
+                                    <div className="flex gap-2 p-1 bg-black rounded-xl border border-white/5">
+                                        <button type="button" onClick={() => setImageSource('upload')} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${imageSource === 'upload' ? 'bg-orange-600 text-white' : 'text-gray-500 hover:text-white'}`}><ImageIcon size={14} /> Upload</button>
+                                        <button type="button" onClick={() => setImageSource('url')} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${imageSource === 'url' ? 'bg-orange-600 text-white' : 'text-gray-500 hover:text-white'}`}><LinkIcon size={14} /> URL</button>
+                                    </div>
+
+                                    <div className="flex gap-4 items-start">
+                                        <div className="flex-1">
+                                            {imageSource === 'upload' ? (
+                                                <Input type="file" accept="image/*" className="bg-black border-white/10 h-12 pt-3" onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })} />
+                                            ) : (
+                                                <Input
+                                                    placeholder="Paste DIRECT image link (e.g. .jpg, .png)"
+                                                    value={formData.imageUrl}
+                                                    className="bg-black border-white/10 h-12"
+                                                    onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                                                />
+                                            )}
+                                        </div>
+
+                                        {/* Real-time Preview */}
+                                        {(formData.imageUrl || formData.image) && (
+                                            <div className="w-12 h-12 rounded-lg border border-white/10 overflow-hidden bg-black flex-shrink-0">
+                                                <img
+                                                    src={imageSource === 'url' ? formData.imageUrl : URL.createObjectURL(formData.image)}
+                                                    alt="Preview"
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => { e.target.src = 'https://via.placeholder.com/150?text=Error'; }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="text-[9px] text-gray-500 italic">Tip: Link must end in .jpg, .png or be a direct image host link.</p>
                                 </div>
-                                {imageSource === 'upload' ? (
-                                    <Input type="file" className="bg-black border-white/10 h-12 pt-3" onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })} />
-                                ) : (
-                                    <Input placeholder="Paste Image URL here..." value={formData.imageUrl} className="bg-black border-white/10 h-12" onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })} />
-                                )}
+
                                 <div className="flex gap-4 pt-4">
                                     <Button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-white/5 text-white h-12 rounded-xl font-bold hover:bg-white/10">Discard</Button>
                                     <Button disabled={loading} className="flex-1 bg-orange-600 text-white h-12 rounded-xl font-black shadow-xl">
