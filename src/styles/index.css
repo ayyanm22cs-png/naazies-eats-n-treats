@@ -35,3 +35,9 @@ body {
 .whatsapp-pulse-ring {
   animation: whatsapp-ripple 2.5s infinite;
 }
+
+/* Chrome, Edge, Safari */
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}

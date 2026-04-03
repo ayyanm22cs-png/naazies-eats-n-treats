@@ -33,7 +33,6 @@ export default function AdminDashboard() {
 
     const fetchStats = async () => {
         try {
-            // 🔥 Switched to Axios Instance
             const res = await api.get(`/admin/stats?mode=${mode}&date=${selectedDate}`);
             setStats(res.data);
         } catch (err) {
@@ -47,16 +46,29 @@ export default function AdminDashboard() {
 
     const handleLogout = async () => {
         try {
-            // Call the backend to clear the HTTP-only cookie
+            // ✅ Backend logout (clears HTTP-only cookie)
             await api.post('/admin/logout');
         } catch (err) {
             console.error("Logout error", err);
         } finally {
-            // 🔥 ALWAYS clear local storage and redirect, even if API fails
+            // ✅ Always clear all frontend auth traces
             localStorage.removeItem('adminUser');
+            sessionStorage.removeItem('adminUser');
+
+            // ✅ Clear token cookie manually too (extra safety)
             document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            document.cookie = "token=; Max-Age=0; path=/;";
+
+            // ✅ Close mobile menu if open
+            setIsMobileMenuOpen(false);
+
+            // ✅ Prevent access to cached protected routes
+            window.history.pushState(null, "", "/admin/login");
+
             toast.success("Logged out successfully");
-            navigate('/admin/login');
+
+            // ✅ IMPORTANT: replace prevents easy back navigation
+            navigate('/admin/login', { replace: true });
         }
     };
 
@@ -70,12 +82,16 @@ export default function AdminDashboard() {
                 {isMobileMenuOpen && (
                     <>
                         <motion.div
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
                             className="fixed inset-0 bg-black/80 z-40 lg:hidden"
                             onClick={() => setIsMobileMenuOpen(false)}
                         />
                         <motion.aside
-                            initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
+                            initial={{ x: '-100%' }}
+                            animate={{ x: 0 }}
+                            exit={{ x: '-100%' }}
                             transition={{ type: 'spring', damping: 25 }}
                             className="fixed top-0 left-0 h-full w-80 bg-[#0A0A0A] border-r border-white/10 z-50 lg:hidden flex flex-col"
                         >

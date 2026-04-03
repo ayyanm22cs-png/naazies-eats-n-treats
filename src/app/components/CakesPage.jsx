@@ -21,18 +21,34 @@ export default function CakesPage() {
     const [loading, setLoading] = useState(true);
     const [openSizeDropdown, setOpenSizeDropdown] = useState(null);
 
+    // ✅ NEW: Track selected variant
+    const [selectedVariants, setSelectedVariants] = useState({});
+
     const fetchCakes = async () => {
         try {
             const [prodRes, catRes] = await Promise.all([
                 api.get("/admin/products"),
                 api.get("/admin/categories")
             ]);
-            setAllCakes(prodRes.data.filter(p => p.status === 'Active'));
+
+            const activeProducts = prodRes.data.filter(p => p.status === 'Active');
+            setAllCakes(activeProducts);
+
+            // ✅ Set default variant
+            const initialVariants = {};
+            activeProducts.forEach((cake) => {
+                if (cake.variants?.length > 0) {
+                    initialVariants[cake._id] = cake.variants[0];
+                }
+            });
+            setSelectedVariants(initialVariants);
+
             const formattedCats = [
                 { id: 'all', label: 'All Collection' },
                 ...catRes.data.map(c => ({ id: c.name.toLowerCase(), label: c.name }))
             ];
             setCategories(formattedCats);
+
         } catch (err) {
             console.error("Sync error:", err);
         } finally {
@@ -46,15 +62,26 @@ export default function CakesPage() {
         return () => clearInterval(syncInterval);
     }, []);
 
+    // ✅ UPDATED: pass selected variant
     const handleOrderClick = (cake) => {
-        setSelectedCake(cake);
+        const selectedVariant = selectedVariants[cake._id] || cake.variants?.[0] || null;
+
+        setSelectedCake({
+            ...cake,
+            selectedVariant
+        });
+
         setIsModalOpen(true);
     };
 
-    const currentTime = useMemo(() => {
-        const now = new Date();
-        return now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-    }, []);
+    // ✅ NEW: Variant select handler
+    const handleVariantSelect = (cakeId, variant) => {
+        setSelectedVariants(prev => ({
+            ...prev,
+            [cakeId]: variant
+        }));
+        setOpenSizeDropdown(null);
+    };
 
     const filteredCakes = useMemo(() => {
         return allCakes.filter(cake => {
@@ -75,10 +102,8 @@ export default function CakesPage() {
 
                 <div className="flex flex-col lg:flex-row gap-10">
 
-                    {/* --- 🖥️ STICKY DESKTOP SIDEBAR WITH INTERNAL SCROLL --- */}
                     <aside className="hidden lg:block lg:w-80 flex-shrink-0">
                         <div className="sticky top-10 h-[calc(100vh-5rem)]">
-                            {/* The container below is the one that scrolls internally */}
                             <div
                                 className="bg-[#141414] border border-white/5 rounded-[2rem] p-8 shadow-2xl h-full overflow-y-auto no-scrollbar"
                                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
@@ -118,59 +143,97 @@ export default function CakesPage() {
                             <OrderModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} cake={selectedCake} />
                             <AnimatePresence mode="popLayout">
                                 {filteredCakes.map((cake) => {
+
                                     const isSoldOut = (cake.ordersToday || 0) >= (cake.maxOrdersPerDay || 0);
-                                    const isTimeClosed = cake.cutoffTime && currentTime >= cake.cutoffTime;
-                                    const isAvailable = cake.availableToday && !isSoldOut && !isTimeClosed;
+                                    const isAvailable = cake.availableToday && !isSoldOut;
+
+                                    // ✅ Selected variant
+                                    const selectedVariant = selectedVariants[cake._id] || cake.variants?.[0];
 
                                     return (
                                         <motion.div key={cake._id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                                             <Card className="bg-[#141414] border border-white/5 rounded-[2.5rem] overflow-visible h-full flex flex-col group hover:border-[#D4AF37]/30 transition-all duration-500 shadow-2xl relative">
+
                                                 <div className="relative h-60 overflow-hidden rounded-t-[2.5rem]">
-                                                    <ImageWithFallback src={cake.image} alt={cake.name} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ${!isAvailable ? 'grayscale opacity-50' : ''}`} />
+                                                    <ImageWithFallback
+                                                        src={cake.image}
+                                                        alt={cake.name}
+                                                        className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ${!isAvailable ? 'grayscale opacity-50' : ''}`}
+                                                    />
                                                     <div className="absolute inset-x-0 top-4 flex justify-center">
                                                         <span className="bg-black/80 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 text-[#D4AF37] text-[10px] font-black uppercase tracking-[0.15em] shadow-2xl">
                                                             {cake.category}
                                                         </span>
                                                     </div>
                                                 </div>
+
                                                 <div className="p-6 flex flex-col flex-1">
                                                     <h3 className="text-xl font-bold text-white mb-2">{cake.name}</h3>
-                                                    <p className="text-gray-400 text-xs mb-6 line-clamp-2 italic leading-relaxed min-h-[32px]">"{cake.description}"</p>
+                                                    <p className="text-gray-400 text-xs mb-6 line-clamp-2 italic leading-relaxed min-h-[32px]">
+                                                        "{cake.description}"
+                                                    </p>
+
                                                     <div className="mt-auto space-y-5 relative">
+
                                                         <div className="relative">
                                                             <button
                                                                 onClick={() => setOpenSizeDropdown(openSizeDropdown === cake._id ? null : cake._id)}
                                                                 className="w-full bg-[#0D0D0D] border border-white/10 rounded-[1.8rem] p-5 flex justify-between items-center z-20 relative"
                                                             >
                                                                 <div className="text-left">
-                                                                    <p className="text-gray-100 text-[11px] font-black uppercase tracking-wider">{cake.variants?.[0]?.sizeName}</p>
-                                                                    <p className="text-xl font-black text-[#D4AF37]">₹{cake.variants?.[0]?.price}</p>
+                                                                    <p className="text-gray-100 text-[11px] font-black uppercase tracking-wider">
+                                                                        {selectedVariant?.sizeName}
+                                                                    </p>
+                                                                    <p className="text-xl font-black text-[#D4AF37]">
+                                                                        ₹{selectedVariant?.price}
+                                                                    </p>
                                                                 </div>
                                                                 <ChevronDown size={18} className={`text-gray-400 transition-transform ${openSizeDropdown === cake._id ? 'rotate-180' : ''}`} />
                                                             </button>
+
                                                             <AnimatePresence>
                                                                 {openSizeDropdown === cake._id && (
-                                                                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="absolute z-[100] mt-3 w-full bg-[#0D0D0D] border border-white/10 rounded-[1.5rem] shadow-2xl p-4 space-y-3 top-full left-0">
+                                                                    <motion.div
+                                                                        initial={{ opacity: 0, y: -10 }}
+                                                                        animate={{ opacity: 1, y: 0 }}
+                                                                        exit={{ opacity: 0, y: -10 }}
+                                                                        className="absolute z-[100] mt-3 w-full bg-[#0D0D0D] border border-white/10 rounded-[1.5rem] shadow-2xl p-4 space-y-3 top-full left-0"
+                                                                    >
                                                                         {cake.variants?.map((v, idx) => (
-                                                                            <div key={idx} className="flex justify-between items-center text-sm text-white">
-                                                                                <span className="font-medium text-xs">{v.sizeName}</span>
+                                                                            <button
+                                                                                key={idx}
+                                                                                onClick={() => handleVariantSelect(cake._id, v)}
+                                                                                className={`w-full flex justify-between items-center text-sm rounded-lg px-3 py-2 ${selectedVariant?.sizeName === v.sizeName
+                                                                                        ? 'bg-[#D4AF37]/10 border border-[#D4AF37]/20'
+                                                                                        : 'hover:bg-white/5'
+                                                                                    }`}
+                                                                            >
+                                                                                <span className="font-medium text-xs text-white">{v.sizeName}</span>
                                                                                 <span className="text-[#D4AF37] font-black text-sm">₹{v.price}</span>
-                                                                            </div>
+                                                                            </button>
                                                                         ))}
                                                                     </motion.div>
                                                                 )}
                                                             </AnimatePresence>
                                                         </div>
+
                                                         <Button
                                                             disabled={!isAvailable}
                                                             onClick={() => handleOrderClick(cake)}
-                                                            className={`w-full font-black rounded-2xl py-8 transition-all duration-300 shadow-xl flex items-center justify-center gap-3 relative z-10 ${isAvailable ? 'bg-[#D4AF37] hover:bg-white text-black active:scale-95' : 'bg-white/5 text-gray-600 cursor-not-allowed grayscale'}`}
+                                                            className={`w-full font-black rounded-2xl py-8 transition-all duration-300 shadow-xl flex items-center justify-center gap-3 relative z-10 ${isAvailable
+                                                                ? 'bg-[#D4AF37] hover:bg-white text-black active:scale-95'
+                                                                : 'bg-white/5 text-gray-600 cursor-not-allowed grayscale'
+                                                                }`}
                                                         >
                                                             <ShoppingCart className="h-5 w-5" />
-                                                            <span className="uppercase tracking-widest text-xs font-black">{isAvailable ? "Order Now" : isTimeClosed ? "Orders Closed" : "Sold Out"}</span>
+                                                            <span className="uppercase tracking-widest text-xs font-black">
+                                                                {isAvailable ? "Order Now" : "Sold Out"}
+                                                            </span>
                                                         </Button>
+
                                                     </div>
                                                 </div>
+
                                             </Card>
                                         </motion.div>
                                     );
@@ -181,15 +244,18 @@ export default function CakesPage() {
                 </div>
             </div>
 
-            {/* Mobile Filter Drawer */}
             <AnimatePresence>
                 {isFilterDrawerOpen && (
                     <>
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsFilterDrawerOpen(false)} className="fixed inset-0 bg-black/90 backdrop-blur-md z-[500] lg:hidden" />
                         <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed top-0 right-0 h-full w-full max-w-sm bg-[#0F0F0F] border-l border-white/10 z-[600] p-8 shadow-2xl overflow-y-auto lg:hidden">
                             <div className="flex justify-between items-center mb-10">
-                                <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Filter size={20} className="text-[#D4AF37]" /> Filters</h2>
-                                <button onClick={() => setIsFilterDrawerOpen(false)} className="bg-white/5 p-2 rounded-full text-gray-400 hover:text-white transition-all"><X size={20} /></button>
+                                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                                    <Filter size={20} className="text-[#D4AF37]" /> Filters
+                                </h2>
+                                <button onClick={() => setIsFilterDrawerOpen(false)} className="bg-white/5 p-2 rounded-full text-gray-400 hover:text-white transition-all">
+                                    <X size={20} />
+                                </button>
                             </div>
                             <div className="space-y-12 pb-10">
                                 <FilterContent

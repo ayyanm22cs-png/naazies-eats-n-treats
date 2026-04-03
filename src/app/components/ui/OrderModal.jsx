@@ -11,21 +11,60 @@ import api from '../../../lib/api';
 export function OrderModal({ isOpen, onClose, cake }) {
     if (!cake) return null;
 
-    // --- Logic to Disable Past Dates & Apply 6:00 PM Cutoff ---
-    const minDateString = useMemo(() => {
-        const now = new Date();
-        const currentHour = now.getHours();
+    const [formData, setFormData] = useState({
+        customerName: '',
+        phone: '',
+        deliveryDate: '',
+        notes: ''
+    });
+    const [loading, setLoading] = useState(false);
 
-        // If it's after 6:00 PM (18:00), the earliest delivery is tomorrow
-        if (currentHour >= 18) {
-            now.setDate(now.getDate() + 1);
+    // --- IST TIME HELPER ---
+    const nowIST = useMemo(() => {
+        return new Date(
+            new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+        );
+    }, [isOpen]);
+
+    // --- CHECK IF CURRENT TIME IS AFTER PRODUCT CUTOFF ---
+    const isAfterCutoff = useMemo(() => {
+        if (!cake.cutoffTime) return false;
+
+        const [cutHour, cutMinute] = cake.cutoffTime.split(":").map(Number);
+
+        const cutoffDate = new Date(nowIST);
+        cutoffDate.setHours(cutHour, cutMinute, 0, 0);
+
+        return nowIST >= cutoffDate;
+    }, [cake.cutoffTime, nowIST]);
+
+    // --- MIN DATE LOGIC BASED ON PRODUCT CUTOFF ---
+    const minDateString = useMemo(() => {
+        const minDate = new Date(nowIST);
+
+        // If current time is after this cake's cutoff, earliest selectable date becomes tomorrow
+        if (isAfterCutoff) {
+            minDate.setDate(minDate.getDate() + 1);
         }
 
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
+        const year = minDate.getFullYear();
+        const month = String(minDate.getMonth() + 1).padStart(2, '0');
+        const day = String(minDate.getDate()).padStart(2, '0');
+
         return `${year}-${month}-${day}`;
-    }, [isOpen]);
+    }, [nowIST, isAfterCutoff]);
+
+    // --- CHECK IF USER SELECTED TODAY AFTER CUTOFF ---
+    const isTodaySelectedAfterCutoff = useMemo(() => {
+        if (!formData.deliveryDate || !cake.cutoffTime) return false;
+
+        const todayYear = nowIST.getFullYear();
+        const todayMonth = String(nowIST.getMonth() + 1).padStart(2, '0');
+        const todayDay = String(nowIST.getDate()).padStart(2, '0');
+        const todayString = `${todayYear}-${todayMonth}-${todayDay}`;
+
+        return formData.deliveryDate === todayString && isAfterCutoff;
+    }, [formData.deliveryDate, cake.cutoffTime, nowIST, isAfterCutoff]);
 
     // --- SEO Schema for Order Action ---
     const orderSchema = {
@@ -51,29 +90,37 @@ export function OrderModal({ isOpen, onClose, cake }) {
         }
     };
 
-    const [formData, setFormData] = useState({ customerName: '', phone: '', deliveryDate: '', notes: '' });
-    const [loading, setLoading] = useState(false);
-
     const handlePhoneChange = (e) => {
         const value = e.target.value.replace(/\D/g, '');
         if (value.length <= 10) setFormData({ ...formData, phone: value });
     };
 
-    const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+    const handleChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
 
     const handleWhatsAppOrder = async (e) => {
         e.preventDefault();
-        if (formData.phone.length !== 10) return toast.error("Please enter a valid 10-digit number.");
+
+        if (formData.phone.length !== 10) {
+            return toast.error("Please enter a valid 10-digit number.");
+        }
+
+        if (isTodaySelectedAfterCutoff) {
+            return toast.error("Same-day orders are closed for this cake. Please select a future delivery date.");
+        }
 
         setLoading(true);
+
         try {
-            const finalPrice = cake.price || 0;
+            const finalPrice = cake.price || cake.variants?.[0]?.price || 0;
+
             await api.post('/admin/orders/create', {
                 productId: cake._id,
                 customerName: formData.customerName,
                 phone: formData.phone,
                 cakeFlavor: cake.category || "General",
-                cakeWeight: cake.size || "1kg",
+                cakeWeight: cake.size || cake.variants?.[0]?.sizeName || "1kg",
                 cakeMessage: formData.notes || "None",
                 deliveryDate: formData.deliveryDate,
                 totalPrice: finalPrice
@@ -91,7 +138,7 @@ export function OrderModal({ isOpen, onClose, cake }) {
             toast.success("Order logged!");
             onClose();
         } catch (error) {
-            toast.error("Process failed. Please try again.");
+            toast.error(error.response?.data?.message || "Process failed. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -104,44 +151,103 @@ export function OrderModal({ isOpen, onClose, cake }) {
                     {/* SEO Script Injection */}
                     <script type="application/ld+json">{JSON.stringify(orderSchema)}</script>
 
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/90 backdrop-blur-sm" />
-                    <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-lg bg-[#141414] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={onClose}
+                        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+                    />
+
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        className="relative w-full max-w-lg bg-[#141414] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl"
+                    >
                         <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-[#D4AF37]/10 to-transparent">
                             <div>
                                 <h2 className="text-xl font-bold text-white">Complete Your Order</h2>
                                 <p className="text-[#D4AF37] text-sm font-medium">{cake.name}</p>
                             </div>
-                            <button onClick={onClose} className="p-2 text-gray-400 hover:text-white transition-colors"><X size={24} /></button>
+                            <button onClick={onClose} className="p-2 text-gray-400 hover:text-white transition-colors">
+                                <X size={24} />
+                            </button>
                         </div>
+
                         <form onSubmit={handleWhatsAppOrder} className="p-8 space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div className="space-y-2">
                                     <Label className="text-gray-400">Full Name</Label>
                                     <div className="relative">
                                         <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                                        <Input name="customerName" required value={formData.customerName} onChange={handleChange} className="pl-10 bg-black border-white/5 text-white h-12 rounded-xl" placeholder="Ayyan Malim" />
+                                        <Input
+                                            name="customerName"
+                                            required
+                                            value={formData.customerName}
+                                            onChange={handleChange}
+                                            className="pl-10 bg-black border-white/5 text-white h-12 rounded-xl"
+                                            placeholder="Ayyan Malim"
+                                        />
                                     </div>
                                 </div>
+
                                 <div className="space-y-2">
                                     <Label className="text-gray-400">Phone Number</Label>
                                     <div className="relative">
                                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                                        <Input name="phone" required type="tel" value={formData.phone} onChange={handlePhoneChange} className="pl-10 bg-black border-white/5 text-white h-12 rounded-xl" placeholder="9876543210" />
+                                        <Input
+                                            name="phone"
+                                            required
+                                            type="tel"
+                                            value={formData.phone}
+                                            onChange={handlePhoneChange}
+                                            className="pl-10 bg-black border-white/5 text-white h-12 rounded-xl"
+                                            placeholder="9876543210"
+                                        />
                                     </div>
                                 </div>
                             </div>
+
                             <div className="space-y-2">
                                 <Label className="text-gray-400">Delivery Date</Label>
                                 <div className="relative group">
-                                    <Input name="deliveryDate" required type="date" min={minDateString} value={formData.deliveryDate} onChange={handleChange} onClick={(e) => e.target.showPicker()} className="bg-black border-white/5 text-white h-12 w-full pr-10 cursor-pointer focus:border-[#D4AF37]/50 rounded-xl" />
+                                    <Input
+                                        name="deliveryDate"
+                                        required
+                                        type="date"
+                                        min={minDateString}
+                                        value={formData.deliveryDate}
+                                        onChange={handleChange}
+                                        onClick={(e) => e.target.showPicker()}
+                                        className="bg-black border-white/5 text-white h-12 w-full pr-10 cursor-pointer focus:border-[#D4AF37]/50 rounded-xl"
+                                    />
                                     <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-[#D4AF37] pointer-events-none" size={18} />
                                 </div>
+
+                                {isAfterCutoff && (
+                                    <p className="text-[11px] text-amber-400 mt-2 font-medium">
+                                        Same-day delivery is closed for this cake. Please choose tomorrow or a future date.
+                                    </p>
+                                )}
                             </div>
+
                             <div className="space-y-2">
                                 <Label className="text-gray-400">Special Instructions / Message</Label>
-                                <Textarea name="notes" value={formData.notes} onChange={handleChange} className="bg-black border-white/5 text-white min-h-[100px] rounded-xl" placeholder="Any special message on the cake or instructions..." />
+                                <Textarea
+                                    name="notes"
+                                    value={formData.notes}
+                                    onChange={handleChange}
+                                    className="bg-black border-white/5 text-white min-h-[100px] rounded-xl"
+                                    placeholder="Any special message on the cake or instructions..."
+                                />
                             </div>
-                            <Button disabled={loading} type="submit" className="w-full bg-[#D4AF37] hover:bg-[#B8860B] text-black font-black py-7 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all">
+
+                            <Button
+                                disabled={loading || isTodaySelectedAfterCutoff}
+                                type="submit"
+                                className="w-full bg-[#D4AF37] hover:bg-[#B8860B] text-black font-black py-7 rounded-2xl text-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
                                 {loading ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
                                 {loading ? "Processing..." : "Send Order to WhatsApp"}
                             </Button>

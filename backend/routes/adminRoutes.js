@@ -1,8 +1,8 @@
 import express from 'express';
 import {
     loginAdmin, logoutAdmin, getAdminOrders, createOrder, updateOrderStatus, updateOrderPrice,
-    getCategories, addCategory, deleteCategory, updateCategory, getDashboardStats,
-    getProducts, addProduct, deleteProduct, toggleProductStatus, updateProduct, toggleAvailability
+    getCategories, addCategory, deleteCategory, updateCategory, getDashboardStats, getProducts, addProduct, 
+    deleteProduct, toggleProductStatus, updateProduct, toggleAvailability, updateAllProductsCutoff
 } from '../controllers/adminController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import { upload } from '../config/cloudinary.js';
@@ -30,6 +30,7 @@ router.delete('/products/:id', protect, admin, deleteProduct);
 router.patch('/products/:id/status', protect, admin, toggleProductStatus);
 router.put('/products/:id', protect, admin, upload.single('image'), updateProduct);
 router.patch('/products/:id/availability', protect, admin, toggleAvailability);
+router.patch('/products/cutoff/all', protect, admin, updateAllProductsCutoff);
 
 router.get('/stats', protect, admin, getDashboardStats);
 

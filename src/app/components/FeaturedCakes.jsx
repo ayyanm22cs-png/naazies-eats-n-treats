@@ -18,6 +18,9 @@ export function FeaturedCakes() {
   const [loading, setLoading] = useState(true);
   const [openSizeDropdown, setOpenSizeDropdown] = useState(null);
 
+  // ✅ NEW: Track selected variant for each cake
+  const [selectedVariants, setSelectedVariants] = useState({});
+
   const fetchFeatured = async () => {
     try {
       const res = await api.get("/admin/products");
@@ -27,6 +30,15 @@ export function FeaturedCakes() {
         .slice(0, 6);
 
       setFeaturedCakes(activeCakes);
+
+      // ✅ NEW: Set default selected variant = first variant
+      const initialVariants = {};
+      activeCakes.forEach((cake) => {
+        if (cake.variants?.length > 0) {
+          initialVariants[cake._id] = cake.variants[0];
+        }
+      });
+      setSelectedVariants(initialVariants);
 
     } catch (err) {
       console.error("Error fetching featured cakes:", err);
@@ -56,8 +68,15 @@ export function FeaturedCakes() {
     };
   }, []);
 
+  // ✅ UPDATED: pass selected variant also
   const handleOrderClick = (cake) => {
-    setSelectedCake(cake);
+    const selectedVariant = selectedVariants[cake._id] || cake.variants?.[0] || null;
+
+    setSelectedCake({
+      ...cake,
+      selectedVariant
+    });
+
     setIsModalOpen(true);
   };
 
@@ -65,16 +84,13 @@ export function FeaturedCakes() {
     navigate('/cakes');
   };
 
-  const isAfterCutoff = (cutoff) => {
-    if (!cutoff) return false;
-
-    const now = new Date();
-    const [h, m] = cutoff.split(":").map(Number);
-
-    const cutoffDate = new Date();
-    cutoffDate.setHours(h, m, 0, 0);
-
-    return now >= cutoffDate;
+  // ✅ NEW: Variant select handler
+  const handleVariantSelect = (cakeId, variant) => {
+    setSelectedVariants((prev) => ({
+      ...prev,
+      [cakeId]: variant
+    }));
+    setOpenSizeDropdown(null);
   };
 
   return (
@@ -112,12 +128,12 @@ export function FeaturedCakes() {
               const isSoldOut =
                 (cake.ordersToday || 0) >= (cake.maxOrdersPerDay || 0);
 
-              const isTimeClosed = isAfterCutoff(cake.cutoffTime);
-
               const isAvailable =
                 cake.availableToday &&
-                !isSoldOut &&
-                !isTimeClosed;
+                !isSoldOut;
+
+              // ✅ NEW: selected variant for this cake
+              const selectedVariant = selectedVariants[cake._id] || cake.variants?.[0];
 
               return (
                 <Card
@@ -130,7 +146,7 @@ export function FeaturedCakes() {
                     <ImageWithFallback
                       src={cake.image}
                       alt={cake.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
+                      className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 ${!isAvailable ? 'grayscale opacity-50' : ''}`}
                     />
                     <div className="absolute left-4 top-4">
                       <span className="bg-black/70 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-[#D4AF37] text-[9px] font-black uppercase tracking-[0.12em] shadow-2xl">
@@ -166,10 +182,10 @@ export function FeaturedCakes() {
                         >
                           <div className="text-left">
                             <p className="text-gray-100 text-[10px] font-black uppercase tracking-wider">
-                              {cake.variants?.[0]?.sizeName}
+                              {selectedVariant?.sizeName}
                             </p>
                             <p className="text-lg font-black text-[#D4AF37]">
-                              ₹{cake.variants?.[0]?.price}
+                              ₹{selectedVariant?.price}
                             </p>
                           </div>
                           <ChevronDown size={16} className="text-gray-400" />
@@ -184,15 +200,20 @@ export function FeaturedCakes() {
                               className="absolute z-50 mt-2 w-full bg-[#0D0D0D] border border-white/10 rounded-[1.2rem] shadow-2xl p-3 space-y-2"
                             >
                               {cake.variants?.map((v, idx) => (
-                                <div
+                                <button
+                                  type="button"
                                   key={idx}
-                                  className="flex justify-between items-center text-xs text-white"
+                                  onClick={() => handleVariantSelect(cake._id, v)}
+                                  className={`w-full flex justify-between items-center text-xs rounded-lg px-3 py-2 transition-all ${selectedVariant?.sizeName === v.sizeName
+                                      ? 'bg-[#D4AF37]/10 border border-[#D4AF37]/20 text-white'
+                                      : 'text-white hover:bg-white/5'
+                                    }`}
                                 >
                                   <span>{v.sizeName}</span>
                                   <span className="text-[#D4AF37] font-bold">
                                     ₹{v.price}
                                   </span>
-                                </div>
+                                </button>
                               ))}
                             </motion.div>
                           )}
@@ -204,16 +225,12 @@ export function FeaturedCakes() {
                         disabled={!isAvailable}
                         onClick={() => handleOrderClick(cake)}
                         className={`w-full font-black rounded-xl py-5 transition-all duration-300 shadow-xl flex items-center justify-center gap-2 text-xs ${isAvailable
-                            ? 'bg-[#D4AF37] hover:bg-white text-black active:scale-95'
-                            : 'bg-white/5 text-gray-600 cursor-not-allowed grayscale'
+                          ? 'bg-[#D4AF37] hover:bg-white text-black active:scale-95'
+                          : 'bg-white/5 text-gray-600 cursor-not-allowed grayscale'
                           }`}
                       >
                         <ShoppingCart className="h-4 w-4" />
-                        {isAvailable
-                          ? 'Order Now'
-                          : isTimeClosed
-                            ? 'Orders Closed'
-                            : 'Sold Out'}
+                        {isAvailable ? 'Order Now' : 'Sold Out'}
                       </Button>
 
                     </div>

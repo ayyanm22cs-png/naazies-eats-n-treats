@@ -54,7 +54,7 @@ export function OrderingProcess() {
           </h2>
 
           <p className="text-[#5A5A5A] text-lg leading-relaxed">
-            Every <strong>homemade Pure Veg cake</strong> is prepared in our home kitchen using quality ingredients, custom designs, and heartfelt care.
+            Every <strong>Homemade Pure Veg cake</strong> is prepared in our home kitchen using quality ingredients, custom designs, and heartfelt care.
           </p>
 
           <div className="w-24 h-1 bg-[#D4AF37] mx-auto mt-10"></div>

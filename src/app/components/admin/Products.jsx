@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Edit2, Plus, Loader2, X, IndianRupee, ImageIcon, Link as LinkIcon, Search } from 'lucide-react';
+import { Trash2, Edit2, Plus, Loader2, X, IndianRupee, ImageIcon, Link as LinkIcon, Search, Clock3, Save } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,7 +16,12 @@ export function Products() {
     const [openDropdown, setOpenDropdown] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
 
-    const [formData, setFormData] = useState({
+    // ✅ GLOBAL CUTOFF TIME
+    const [globalCutoffTime, setGlobalCutoffTime] = useState("18:00");
+    const [savingCutoff, setSavingCutoff] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState('');
+
+    const defaultFormData = {
         name: '',
         category: '',
         description: '',
@@ -25,9 +30,12 @@ export function Products() {
         variants: [{ sizeName: '1/2 Kg', serves: '', price: '', stock: '10' }],
         availableToday: true,
         maxOrdersPerDay: 5,
+        ordersToday: 0,
         cutoffTime: "18:00",
         status: 'Active'
-    });
+    };
+
+    const [formData, setFormData] = useState(defaultFormData);
 
     const fetchData = async () => {
         try {
@@ -37,17 +45,39 @@ export function Products() {
             ]);
             setCategories(catRes.data);
             setProducts(prodRes.data);
+
+            // ✅ Pick first product cutoff as global display value
+            if (prodRes.data.length > 0 && prodRes.data[0].cutoffTime) {
+                setGlobalCutoffTime(prodRes.data[0].cutoffTime);
+            }
         } catch (err) {
             console.error("Fetch error:", err);
         }
     };
 
     useEffect(() => {
+        if (formData.image instanceof File) {
+            const objectUrl = URL.createObjectURL(formData.image);
+            setPreviewUrl(objectUrl);
+
+            return () => URL.revokeObjectURL(objectUrl);
+        } else {
+            setPreviewUrl('');
+        }
+    }, [formData.image]);
+
+    useEffect(() => {
         fetchData();
     }, []);
 
     const addSizeRow = () => {
-        setFormData({ ...formData, variants: [...formData.variants, { sizeName: '', serves: '', price: '', stock: '10' }] });
+        setFormData({
+            ...formData,
+            variants: [
+                ...formData.variants,
+                { sizeName: '', serves: '', price: '', stock: '10' }
+            ]
+        });
     };
 
     const removeSizeRow = (index) => {
@@ -69,11 +99,13 @@ export function Products() {
         data.append('variants', JSON.stringify(formData.variants));
 
         Object.keys(formData).forEach(key => {
-            if (key === 'imageUrl' || key === 'variants' || key === 'image') return;
+            if (key === 'imageUrl' || key === 'variants' || key === 'image' || key === 'cutoffTime') return;
             data.append(key, formData[key]);
         });
 
-        // Use imageUrl if source is URL, else use the uploaded file
+        // ✅ Always use global cutoff for all products
+        data.append('cutoffTime', globalCutoffTime);
+
         if (imageSource === 'url') {
             data.append('image', formData.imageUrl);
         } else if (formData.image) {
@@ -87,6 +119,8 @@ export function Products() {
             toast.success(editingId ? "Product Updated!" : "Cake Created!");
             setShowModal(false);
             setEditingId(null);
+            setFormData(defaultFormData);
+            setPreviewUrl('');
             fetchData();
         } catch (err) {
             toast.error(err.response?.data?.message || "Operation failed");
@@ -94,19 +128,39 @@ export function Products() {
         setLoading(false);
     };
 
+    // ✅ SAVE GLOBAL CUTOFF FOR ALL PRODUCTS
+    const handleSaveGlobalCutoff = async () => {
+        try {
+            setSavingCutoff(true);
+            await api.patch('/admin/products/cutoff/all', {
+                cutoffTime: globalCutoffTime
+            });
+            toast.success("Global cutoff time updated for all cakes");
+            fetchData();
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to update cutoff time");
+        } finally {
+            setSavingCutoff(false);
+        }
+    };
+
     const toggleAvailability = async (id) => {
         try {
             await api.patch(`/admin/products/${id}/availability`);
             toast.success("Availability Updated");
             fetchData();
-        } catch { toast.error("Failed"); }
+        } catch {
+            toast.error("Failed");
+        }
     };
 
     const toggleStatus = async (id) => {
         try {
             await api.patch(`/admin/products/${id}/status`);
             fetchData();
-        } catch { toast.error("Failed"); }
+        } catch {
+            toast.error("Failed");
+        }
     };
 
     const handleDelete = async (id) => {
@@ -115,12 +169,14 @@ export function Products() {
             await api.delete(`/admin/products/${id}`);
             toast.success("Deleted");
             fetchData();
-        } catch { toast.error("Failed"); }
+        } catch {
+            toast.error("Failed");
+        }
     };
 
     const filteredProducts = products.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.category.toLowerCase().includes(searchQuery.toLowerCase())
+        p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.category?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (
@@ -128,7 +184,7 @@ export function Products() {
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <h1 className="text-2xl font-bold text-white">Product Inventory</h1>
 
-                <div className="flex flex-col md:flex-row items-center gap-4">
+                <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
                     <div className="relative group w-full md:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-[#D4AF37]" size={16} />
                         <input
@@ -140,15 +196,34 @@ export function Products() {
                         />
                     </div>
 
+                    {/* ✅ GLOBAL CUTOFF TIME */}
+                    <div className="flex items-center gap-2 bg-[#141414] border border-white/5 rounded-xl px-3 py-2 shadow-xl w-full md:w-auto">
+                        <Clock3 size={16} className="text-[#D4AF37]" />
+                        <Input
+                            type="time"
+                            value={globalCutoffTime || "18:00"}
+                            onChange={(e) => setGlobalCutoffTime(e.target.value)}
+                            className="bg-transparent border-none text-white h-8 px-0 py-0 text-sm shadow-none focus-visible:ring-0 [color-scheme:dark]"
+                        />
+                        <Button
+                            type="button"
+                            onClick={handleSaveGlobalCutoff}
+                            disabled={savingCutoff}
+                            className="bg-[#D4AF37] hover:bg-[#c79f20] text-black h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider"
+                        >
+                            {savingCutoff ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                        </Button>
+                    </div>
+
                     <Button
                         onClick={() => {
                             setEditingId(null);
                             setImageSource('upload');
                             setFormData({
-                                name: '', category: '', description: '', image: null, imageUrl: '',
-                                variants: [{ sizeName: '1/2 Kg', serves: '', price: '', stock: '10' }],
-                                availableToday: true, maxOrdersPerDay: 5, cutoffTime: "18:00", status: 'Active'
+                                ...defaultFormData,
+                                cutoffTime: globalCutoffTime
                             });
+                            setPreviewUrl('');
                             setShowModal(true);
                         }}
                         className="w-full md:w-auto bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-6 rounded-xl flex items-center justify-center gap-2 shadow-lg"
@@ -223,12 +298,34 @@ export function Products() {
                                         </td>
                                         <td className="px-8 py-5 text-right px-10">
                                             <div className="flex justify-end gap-4">
-                                                <Edit2 size={18} className="text-gray-400 hover:text-orange-500 cursor-pointer" onClick={() => {
-                                                    setEditingId(p._id);
-                                                    setImageSource('url');
-                                                    setFormData({ ...p, imageUrl: p.image });
-                                                    setShowModal(true);
-                                                }} />
+                                                <Edit2
+                                                    size={18}
+                                                    className="text-gray-400 hover:text-orange-500 cursor-pointer"
+                                                    onClick={() => {
+                                                        setEditingId(p._id);
+                                                        setImageSource('url');
+                                                        setFormData({
+                                                            name: p.name || '',
+                                                            category: p.category || '',
+                                                            description: p.description || '',
+                                                            image: null,
+                                                            imageUrl: p.image || '',
+                                                            variants: (p.variants || []).map(v => ({
+                                                                sizeName: v.sizeName || '',
+                                                                serves: v.serves || '',
+                                                                price: v.price ?? '',
+                                                                stock: v.stock ?? '10'
+                                                            })),
+                                                            availableToday: p.availableToday ?? true,
+                                                            maxOrdersPerDay: p.maxOrdersPerDay ?? 5,
+                                                            ordersToday: p.ordersToday ?? 0,
+                                                            cutoffTime: globalCutoffTime || "18:00",
+                                                            status: p.status || 'Active'
+                                                        });
+                                                        setPreviewUrl('');
+                                                        setShowModal(true);
+                                                    }}
+                                                />
                                                 <Trash2 size={18} className="text-gray-400 hover:text-red-500 cursor-pointer" onClick={() => handleDelete(p._id)} />
                                             </div>
                                         </td>
@@ -249,23 +346,25 @@ export function Products() {
                                 <h2 className="text-xl font-bold text-white">{editingId ? "Update Creation" : "New Creation"}</h2>
                                 <button onClick={() => setShowModal(false)} className="bg-white/5 p-2 rounded-full text-gray-400 hover:text-white transition-all"><X size={20} /></button>
                             </div>
+
                             <form onSubmit={handleUpload} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Cake Name</label>
-                                        <Input value={formData.name} required className="bg-black border-white/10 h-12 rounded-xl" onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                                        <Input value={formData.name || ''} required className="bg-black border-white/10 h-12 rounded-xl" onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Category</label>
-                                        <select required className="w-full h-12 bg-black border border-white/10 rounded-xl px-4 text-white text-sm" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })}>
+                                        <select required className="w-full h-12 bg-black border border-white/10 rounded-xl px-4 text-white text-sm" value={formData.category || ''} onChange={(e) => setFormData({ ...formData, category: e.target.value })}>
                                             <option value="">Select Category</option>
                                             {categories.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
                                         </select>
                                     </div>
                                 </div>
+
                                 <div className="space-y-2">
                                     <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Description</label>
-                                    <textarea className="w-full bg-black border border-white/10 rounded-xl p-4 text-white text-sm outline-none min-h-[100px]" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
+                                    <textarea className="w-full bg-black border border-white/10 rounded-xl p-4 text-white text-sm outline-none min-h-[100px]" value={formData.description || ''} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
                                 </div>
 
                                 <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-4">
@@ -275,13 +374,56 @@ export function Products() {
                                     </div>
                                     {formData.variants.map((v, i) => (
                                         <div key={i} className="grid grid-cols-12 gap-2 items-end bg-black/40 p-3 rounded-xl border border-white/5">
-                                            <div className="col-span-3"><Input placeholder="Size" value={v.sizeName} required onChange={(e) => updateVariant(i, 'sizeName', e.target.value)} className="bg-black border-white/10 h-9 text-xs" /></div>
-                                            <div className="col-span-3"><Input placeholder="Serves" value={v.serves} onChange={(e) => updateVariant(i, 'serves', e.target.value)} className="bg-black border-white/10 h-9 text-xs" /></div>
-                                            <div className="col-span-3"><Input type="number" placeholder="Price" value={v.price} required onChange={(e) => updateVariant(i, 'price', e.target.value)} className="bg-black border-white/10 h-9 text-xs" /></div>
-                                            <div className="col-span-2"><Input type="number" value={v.stock} onChange={(e) => updateVariant(i, 'stock', e.target.value)} className="bg-black border-white/10 h-9 text-xs" /></div>
+                                            <div className="col-span-3"><Input placeholder="Size" value={v.sizeName || ''} required onChange={(e) => updateVariant(i, 'sizeName', e.target.value)} className="bg-black border-white/10 h-9 text-xs" /></div>
+                                            <div className="col-span-3"><Input placeholder="Serves" value={v.serves || ''} onChange={(e) => updateVariant(i, 'serves', e.target.value)} className="bg-black border-white/10 h-9 text-xs" /></div>
+                                            <div className="col-span-3"><Input type="number" placeholder="Price" value={v.price ?? ''} required onChange={(e) => updateVariant(i, 'price', e.target.value)} className="bg-black border-white/10 h-9 text-xs" /></div>
+                                            <div className="col-span-2"><Input type="number" value={v.stock ?? ''} onChange={(e) => updateVariant(i, 'stock', e.target.value)} className="bg-black border-white/10 h-9 text-xs" /></div>
                                             <button type="button" onClick={() => removeSizeRow(i)} className="col-span-1 text-gray-600 hover:text-red-500 pb-2"><Trash2 size={16} /></button>
                                         </div>
                                     ))}
+                                </div>
+
+                                {/* ✅ CAPACITY SETTINGS ONLY */}
+                                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-4">
+                                    <h3 className="text-white font-black text-xs uppercase tracking-widest">
+                                        Capacity Settings
+                                    </h3>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                                                Max Orders Per Day
+                                            </label>
+                                            <Input
+                                                type="number"
+                                                value={formData.maxOrdersPerDay ?? 0}
+                                                onChange={(e) =>
+                                                    setFormData({
+                                                        ...formData,
+                                                        maxOrdersPerDay: Math.max(0, Number(e.target.value))
+                                                    })
+                                                }
+                                                className="bg-black border-white/10 h-12 rounded-xl"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                                                Orders Today (Manual)
+                                            </label>
+                                            <Input
+                                                type="number"
+                                                value={formData.ordersToday ?? 0}
+                                                onChange={(e) =>
+                                                    setFormData({
+                                                        ...formData,
+                                                        ordersToday: Math.max(0, Number(e.target.value))
+                                                    })
+                                                }
+                                                className="bg-black border-white/10 h-12 rounded-xl"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-4 bg-white/[0.02] p-4 rounded-2xl border border-white/5">
@@ -294,25 +436,26 @@ export function Products() {
                                     <div className="flex gap-4 items-start">
                                         <div className="flex-1">
                                             {imageSource === 'upload' ? (
-                                                <Input type="file" accept="image/*" className="bg-black border-white/10 h-12 pt-3" onChange={(e) => setFormData({ ...formData, image: e.target.files[0] })} />
+                                                <Input type="file" accept="image/*" className="bg-black border-white/10 h-12 pt-3" onChange={(e) => setFormData({ ...formData, image: e.target.files?.[0] || null })} />
                                             ) : (
                                                 <Input
                                                     placeholder="Paste DIRECT image link (e.g. .jpg, .png)"
-                                                    value={formData.imageUrl}
+                                                    value={formData.imageUrl || ''}
                                                     className="bg-black border-white/10 h-12"
                                                     onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
                                                 />
                                             )}
                                         </div>
 
-                                        {/* Real-time Preview */}
-                                        {(formData.imageUrl || formData.image) && (
+                                        {(formData.imageUrl || previewUrl) && (
                                             <div className="w-12 h-12 rounded-lg border border-white/10 overflow-hidden bg-black flex-shrink-0">
                                                 <img
-                                                    src={imageSource === 'url' ? formData.imageUrl : URL.createObjectURL(formData.image)}
+                                                    src={imageSource === 'url' ? formData.imageUrl : previewUrl}
                                                     alt="Preview"
                                                     className="w-full h-full object-cover"
-                                                    onError={(e) => { e.target.src = 'https://via.placeholder.com/150?text=Error'; }}
+                                                    onError={(e) => {
+                                                        e.target.style.display = 'none';
+                                                    }}
                                                 />
                                             </div>
                                         )}
